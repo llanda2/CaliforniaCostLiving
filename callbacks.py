@@ -1,196 +1,440 @@
 from dash.dependencies import Input, Output
-import dash_bootstrap_components as dbc
-from dash import dcc, html, dash_table
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import pandas as pd
+import numpy as np
 
 
 def register_callbacks(app, min_wage_df, energy_gas_df, healthcare_df, housing_df, leisure_df, income_df):
-    # Tab selection callback
-    @app.callback(
-        Output("tab-content", "children"),
-        [Input("tabs", "value")]
-    )
-    def render_tab_content(tab):
-        if tab == "income-tab":
-            return create_income_tab(income_df, min_wage_df)
-        elif tab == "expenses-tab":
-            return create_expenses_tab(energy_gas_df, healthcare_df, housing_df, leisure_df)
-        elif tab == "comparative-tab":
-            return create_comparative_tab(income_df, energy_gas_df, healthcare_df, housing_df, leisure_df)
+    """Register all callbacks for the dashboard"""
 
-    # Income tab callbacks
-    @app.callback(
-        Output("income-chart", "figure"),
-        [Input("income-year-slider", "value")]
-    )
-    def update_income_chart(years):
-        filtered_df = income_df[(income_df['Year'] >= years[0]) & (income_df['Year'] <= years[1])]
-        fig = px.line(filtered_df, x='Year', y='MedianIncome',
-                      title='Median Household Income in California')
-        return fig
+    # Helper functions
+    def filter_by_year_range(df, start_year, end_year):
+        """Filter dataframe by year range"""
+        return df[(df['observation_date'].dt.year >= start_year) &
+                  (df['observation_date'].dt.year <= end_year)]
 
-    # Expenses tab callbacks
+    def calculate_growth_percentage(series):
+        """Calculate percentage growth from first to last value"""
+        if len(series) < 2:
+            return 0
+        first_val = series.iloc[0]
+        last_val = series.iloc[-1]
+        if first_val == 0:
+            return 0
+        return ((last_val - first_val) / first_val) * 100
+
+    def adjust_for_inflation(df, value_column, base_year=2020):
+        """Apply inflation adjustment to convert values to base_year dollars"""
+        # This is a simplified inflation adjustment
+        # In a real app, you would use actual CPI or inflation data
+        df_copy = df.copy()
+
+        # Simplified inflation factors (approx. 2.5% annual inflation)
+        years = df_copy['observation_date'].dt.year
+        # Create adjustment factors (further from base_year = larger adjustment)
+        adjustment_factors = np.power(1.025, base_year - years)
+
+        # Apply adjustment
+        df_copy[value_column] = df_copy[value_column] * adjustment_factors
+        return df_copy
+
+    # Callback for Income Chart and Table
     @app.callback(
-        Output("expenses-chart", "figure"),
-        [Input("expense-categories", "value"),
-         Input("expense-year-slider", "value")]
+        [Output('income-chart', 'figure'),
+         Output('income-table', 'data'),
+         Output('income-table', 'columns'),
+         Output('income-growth-value', 'children')],
+        [Input('year-slider', 'value'),
+         Input('view-radio', 'value')]
     )
-    def update_expenses_chart(categories, years):
-        # Create a figure to hold all the expense data
+    def update_income_tab(years, view_option):
+        start_year, end_year = years
+        filtered_df = filter_by_year_range(income_df, start_year, end_year)
+
+        # Create a copy for display
+        display_df = filtered_df.copy()
+
+        # Calculate growth percentage
+        if len(filtered_df) > 1:
+            income_col = [col for col in filtered_df.columns if col != 'observation_date'][0]
+            growth_pct = calculate_growth_percentage(filtered_df[income_col])
+            growth_text = f"{growth_pct:.1f}%"
+        else:
+            growth_text = "N/A"
+
+        # Handle view options
+        if view_option == 'percent':
+            if len(filtered_df) > 1:
+                income_col = [col for col in filtered_df.columns if col != 'observation_date'][0]
+                first_val = filtered_df[income_col].iloc[0]
+                display_df[income_col] = ((filtered_df[income_col] - first_val) / first_val) * 100
+                y_title = "Percent Change (%)"
+            else:
+                y_title = "Median Household Income ($)"
+        elif view_option == 'adjusted':
+            # Apply inflation adjustment
+            income_col = [col for col in filtered_df.columns if col != 'observation_date'][0]
+            display_df = adjust_for_inflation(filtered_df, income_col)
+            y_title = "Inflation-Adjusted Median Household Income (2020 $)"
+        else:
+            y_title = "Median Household Income ($)"
+
+        # Create figure
+        fig = px.line(
+            display_df,
+            x='observation_date',
+            y=[col for col in display_df.columns if col != 'observation_date'][0],
+            title=f"California Median Household Income ({start_year}-{end_year})",
+            labels={'observation_date': 'Year', 'value': y_title}
+        )
+
+        fig.update_layout(
+            xaxis_title="Year",
+            yaxis_title=y_title,
+            template="plotly_white",
+            legend_title_text="",
+            hovermode="x unified"
+        )
+
+        # Prepare table data
+        display_df['Year'] = display_df['observation_date'].dt.year
+        table_df = display_df.drop('observation_date', axis=1)
+
+        # Format the table column headers
+        income_col = [col for col in table_df.columns if col != 'Year'][0]
+        columns = [{"name": "Year", "id": "Year"}]
+
+        if view_option == 'percent':
+            columns.append({"name": "Percent Change (%)", "id": income_col})
+        elif view_option == 'adjusted':
+            columns.append({"name": "Adjusted Income (2020 $)", "id": income_col})
+        else:
+            columns.append({"name": "Median Income ($)", "id": income_col})
+
+        # Sort by year
+        table_df = table_df.sort_values('Year')
+
+        return fig, table_df.to_dict('records'), columns, growth_text
+
+    # Callback for Expenses Chart and Table
+    @app.callback(
+        [Output('expenses-chart', 'figure'),
+         Output('expenses-table', 'data'),
+         Output('expenses-table', 'columns'),
+         Output('housing-growth-value', 'children')],
+        [Input('year-slider', 'value'),
+         Input('expense-checklist', 'value'),
+         Input('view-radio', 'value')]
+    )
+    def update_expenses_tab(years, selected_expenses, view_option):
+        start_year, end_year = years
+
+        # Map expense selection to dataframes
+        expense_map = {
+            'energy': ('Energy & Gas', energy_gas_df),
+            'healthcare': ('Healthcare', healthcare_df),
+            'housing': ('Housing & Utilities', housing_df),
+            'leisure': ('Leisure Goods', leisure_df)
+        }
+
+        # Filter selected expenses by year range
+        filtered_expenses = {}
+        for key, (label, df) in expense_map.items():
+            if key in selected_expenses:
+                filtered_df = filter_by_year_range(df, start_year, end_year)
+                filtered_expenses[label] = filtered_df
+
+        # Calculate housing growth for the KPI
+        if 'housing' in selected_expenses and len(filtered_expenses['Housing & Utilities']) > 1:
+            housing_col = \
+            [col for col in filtered_expenses['Housing & Utilities'].columns if col != 'observation_date'][0]
+            housing_growth = calculate_growth_percentage(filtered_expenses['Housing & Utilities'][housing_col])
+            housing_growth_text = f"{housing_growth:.1f}%"
+        else:
+            housing_growth_text = "N/A"
+
+        # Create figure data
         fig = go.Figure()
 
-        # Add each selected category to the chart
-        if 'housing' in categories and 'Year' in housing_df.columns:
-            filtered = housing_df[(housing_df['Year'] >= years[0]) & (housing_df['Year'] <= years[1])]
-            fig.add_trace(go.Scatter(x=filtered['Year'], y=filtered['Cost'], mode='lines', name='Housing & Utilities'))
+        # Prepare table data
+        merged_data = []
+        all_years = set()
 
-        if 'energy' in categories and 'Year' in energy_gas_df.columns:
-            filtered = energy_gas_df[(energy_gas_df['Year'] >= years[0]) & (energy_gas_df['Year'] <= years[1])]
-            fig.add_trace(go.Scatter(x=filtered['Year'], y=filtered['Cost'], mode='lines', name='Energy & Gas'))
+        for label, df in filtered_expenses.items():
+            expense_col = [col for col in df.columns if col != 'observation_date'][0]
 
-        if 'healthcare' in categories and 'Year' in healthcare_df.columns:
-            filtered = healthcare_df[(healthcare_df['Year'] >= years[0]) & (healthcare_df['Year'] <= years[1])]
-            fig.add_trace(go.Scatter(x=filtered['Year'], y=filtered['Cost'], mode='lines', name='Healthcare'))
+            # Handle view options
+            display_df = df.copy()
 
-        if 'leisure' in categories and 'Year' in leisure_df.columns:
-            filtered = leisure_df[(leisure_df['Year'] >= years[0]) & (leisure_df['Year'] <= years[1])]
-            fig.add_trace(go.Scatter(x=filtered['Year'], y=filtered['Cost'], mode='lines', name='Leisure Goods'))
+            if view_option == 'percent':
+                if len(df) > 1:
+                    first_val = df[expense_col].iloc[0]
+                    if first_val != 0:  # Avoid division by zero
+                        display_df[expense_col] = ((df[expense_col] - first_val) / first_val) * 100
+                y_axis_title = "Percent Change (%)"
+            elif view_option == 'adjusted':
+                display_df = adjust_for_inflation(df, expense_col)
+                y_axis_title = "Inflation-Adjusted Value (2020 $)"
+            else:
+                y_axis_title = "Expenses ($)"
 
-        fig.update_layout(title='Expense Categories Over Time',
-                          xaxis_title='Year',
-                          yaxis_title='Cost (per capita)')
-        return fig
+            # Add trace to figure
+            fig.add_trace(go.Scatter(
+                x=display_df['observation_date'],
+                y=display_df[expense_col],
+                mode='lines+markers',
+                name=label
+            ))
 
-    # Add more callbacks for comparative tab as needed
+            # Collect data for table
+            for _, row in display_df.iterrows():
+                year = row['observation_date'].year
+                all_years.add(year)
 
+                # Find or create entry for this year
+                year_entry = next((entry for entry in merged_data if entry.get('Year') == year), None)
+                if year_entry is None:
+                    year_entry = {'Year': year}
+                    merged_data.append(year_entry)
 
-# Helper functions to create tab layouts
-def create_income_tab(income_df, min_wage_df):
-    min_year = min(income_df['Year'].min() if 'Year' in income_df.columns else 2000,
-                   min_wage_df['Year'].min() if 'Year' in min_wage_df.columns else 2000)
-    max_year = max(income_df['Year'].max() if 'Year' in income_df.columns else 2023,
-                   min_wage_df['Year'].max() if 'Year' in min_wage_df.columns else 2023)
+                # Add value for this expense category
+                year_entry[label] = round(row[expense_col], 2)
 
-    return dbc.Container([
-        dbc.Row([
-            dbc.Col([
-                html.H3("Income Analysis"),
-                html.P("Explore how median household income in California has changed over time.")
-            ])
-        ]),
+        # Sort years for table
+        merged_data.sort(key=lambda x: x['Year'])
 
-        dbc.Row([
-            dbc.Col([
-                html.Label("Select Year Range:"),
-                dcc.RangeSlider(
-                    id='income-year-slider',
-                    min=min_year,
-                    max=max_year,
-                    step=1,
-                    marks={i: str(i) for i in range(int(min_year), int(max_year) + 1, 2)},
-                    value=[min_year, max_year]
-                )
-            ])
-        ]),
+        # Create column definitions for table
+        table_columns = [{"name": "Year", "id": "Year"}]
+        for label in filtered_expenses.keys():
+            if view_option == 'percent':
+                display_name = f"{label} (% Change)"
+            elif view_option == 'adjusted':
+                display_name = f"{label} (2020 $)"
+            else:
+                display_name = label
+            table_columns.append({"name": display_name, "id": label})
 
-        dbc.Row([
-            dbc.Col([
-                dcc.Graph(id='income-chart')
-            ], width=12, lg=6),
+        # Update layout
+        fig.update_layout(
+            title=f"California Expenses Comparison ({start_year}-{end_year})",
+            xaxis_title="Year",
+            yaxis_title=y_axis_title,
+            template="plotly_white",
+            hovermode="x unified",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
 
-            dbc.Col([
-                html.H4("Raw Income Data"),
-                dash_table.DataTable(
-                    id='income-table',
-                    columns=[{"name": i, "id": i} for i in income_df.columns],
-                    data=income_df.to_dict('records'),
-                    page_size=10,
-                    style_table={'overflowX': 'auto'}
-                )
-            ], width=12, lg=6)
-        ])
-    ])
+        return fig, merged_data, table_columns, housing_growth_text
 
+    # Callback for Comparative Analysis Charts
+    @app.callback(
+        [Output('comparison-chart', 'figure'),
+         Output('ratio-chart', 'figure'),
+         Output('income-housing-ratio', 'children'),
+         Output('min-wage-growth', 'children')],
+        [Input('year-slider', 'value'),
+         Input('expense-checklist', 'value'),
+         Input('view-radio', 'value')]
+    )
+    def update_comparative_tab(years, selected_expenses, view_option):
+        start_year, end_year = years
 
-def create_expenses_tab(energy_gas_df, healthcare_df, housing_df, leisure_df):
-    # Determine min and max years across all datasets
-    year_columns = []
-    for df in [energy_gas_df, healthcare_df, housing_df, leisure_df]:
-        if 'Year' in df.columns:
-            year_columns.append(df['Year'])
+        # Filter data
+        filtered_income = filter_by_year_range(income_df, start_year, end_year)
+        filtered_min_wage = filter_by_year_range(min_wage_df, start_year, end_year)
 
-    if year_columns:
-        all_years = pd.concat(year_columns)
-        min_year = all_years.min()
-        max_year = all_years.max()
-    else:
-        min_year = 2000
-        max_year = 2023
+        # Map expense selection to dataframes
+        expense_map = {
+            'energy': ('Energy & Gas', energy_gas_df),
+            'healthcare': ('Healthcare', healthcare_df),
+            'housing': ('Housing & Utilities', housing_df),
+            'leisure': ('Leisure Goods', leisure_df)
+        }
 
-    return dbc.Container([
-        dbc.Row([
-            dbc.Col([
-                html.H3("Expenses Analysis"),
-                html.P("Explore how different expense categories have changed over time in California.")
-            ])
-        ]),
+        # Filter selected expenses by year range
+        filtered_expenses = {}
+        for key, (label, df) in expense_map.items():
+            if key in selected_expenses:
+                filtered_df = filter_by_year_range(df, start_year, end_year)
+                filtered_expenses[label] = filtered_df
 
-        dbc.Row([
-            dbc.Col([
-                html.Label("Select Expense Categories:"),
-                dcc.Checklist(
-                    id='expense-categories',
-                    options=[
-                        {'label': ' Housing & Utilities', 'value': 'housing'},
-                        {'label': ' Energy & Gas', 'value': 'energy'},
-                        {'label': ' Healthcare', 'value': 'healthcare'},
-                        {'label': ' Leisure Goods', 'value': 'leisure'}
-                    ],
-                    value=['housing', 'healthcare', 'energy'],
-                    inline=True
-                )
-            ])
-        ]),
+        # Prepare comparative analysis
+        comparison_fig = go.Figure()
+        ratio_fig = go.Figure()
 
-        dbc.Row([
-            dbc.Col([
-                html.Label("Select Year Range:"),
-                dcc.RangeSlider(
-                    id='expense-year-slider',
-                    min=min_year,
-                    max=max_year,
-                    step=1,
-                    marks={i: str(i) for i in range(int(min_year), int(max_year) + 1, 2)},
-                    value=[min_year, max_year]
-                )
-            ])
-        ]),
+        # Get income column name
+        income_col = [col for col in filtered_income.columns if col != 'observation_date'][0]
 
-        dbc.Row([
-            dbc.Col([
-                dcc.Graph(id='expenses-chart')
-            ], width=12)
-        ])
-    ])
+        # Get min wage column name
+        min_wage_col = [col for col in filtered_min_wage.columns if col != 'observation_date'][0]
 
+        # Calculate min wage growth for KPI
+        if len(filtered_min_wage) > 1:
+            min_wage_growth = calculate_growth_percentage(filtered_min_wage[min_wage_col])
+            min_wage_growth_text = f"{min_wage_growth:.1f}%"
+        else:
+            min_wage_growth_text = "N/A"
 
-def create_comparative_tab(income_df, energy_gas_df, healthcare_df, housing_df, leisure_df):
-    return dbc.Container([
-        dbc.Row([
-            dbc.Col([
-                html.H3("Comparative Analysis"),
-                html.P("Compare income trends with expense categories over time.")
-            ])
-        ]),
+        # Add income trace
+        display_income = filtered_income.copy()
 
-        dbc.Row([
-            dbc.Col([
-                dcc.Graph(
-                    id='comparative-chart',
-                    figure=px.line(title="Income vs. Expenses Over Time")
-                )
-            ])
-        ])
-    ])
+        if view_option == 'percent':
+            if len(filtered_income) > 1:
+                first_val = filtered_income[income_col].iloc[0]
+                display_income[income_col] = ((filtered_income[income_col] - first_val) / first_val) * 100
+            y_title = "Percent Change (%)"
+        elif view_option == 'adjusted':
+            display_income = adjust_for_inflation(filtered_income, income_col)
+            y_title = "Inflation-Adjusted Value (2020 $)"
+        else:
+            y_title = "Value ($)"
+
+        comparison_fig.add_trace(go.Scatter(
+            x=display_income['observation_date'],
+            y=display_income[income_col],
+            mode='lines',
+            name='Median Income',
+            line=dict(color='rgb(0, 128, 0)', width=3)
+        ))
+
+        # Add minimum wage trace
+        display_min_wage = filtered_min_wage.copy()
+
+        if view_option == 'percent':
+            if len(filtered_min_wage) > 1:
+                first_val = filtered_min_wage[min_wage_col].iloc[0]
+                display_min_wage[min_wage_col] = ((filtered_min_wage[min_wage_col] - first_val) / first_val) * 100
+        elif view_option == 'adjusted':
+            display_min_wage = adjust_for_inflation(filtered_min_wage, min_wage_col)
+
+        # Scale min wage to annual full-time equivalent (40hrs * 52 weeks)
+        display_min_wage[min_wage_col] = display_min_wage[min_wage_col] * 40 * 52
+
+        comparison_fig.add_trace(go.Scatter(
+            x=display_min_wage['observation_date'],
+            y=display_min_wage[min_wage_col],
+            mode='lines',
+            name='Full-time Min. Wage',
+            line=dict(color='rgb(128, 128, 0)', width=2, dash='dot')
+        ))
+
+        # Add expense traces and calculate ratios
+        housing_income_ratio = "N/A"  # Default value
+
+        ratios_data = {}
+        years_list = []
+
+        # Add expense traces
+        for label, df in filtered_expenses.items():
+            expense_col = [col for col in df.columns if col != 'observation_date'][0]
+            display_df = df.copy()
+
+            if view_option == 'percent':
+                if len(df) > 1:
+                    first_val = df[expense_col].iloc[0]
+                    display_df[expense_col] = ((df[expense_col] - first_val) / first_val) * 100
+            elif view_option == 'adjusted':
+                display_df = adjust_for_inflation(df, expense_col)
+
+            comparison_fig.add_trace(go.Scatter(
+                x=display_df['observation_date'],
+                y=display_df[expense_col],
+                mode='lines',
+                name=label
+            ))
+
+            # Calculate income-to-expense ratios
+            if label == 'Housing & Utilities' and len(df) > 0 and len(filtered_income) > 0:
+                # For the KPI, calculate the most recent income-to-housing ratio
+                if len(df) > 0 and len(filtered_income) > 0:
+                    # Get the common years
+                    housing_years = set(df['observation_date'].dt.year)
+                    income_years = set(filtered_income['observation_date'].dt.year)
+                    common_years = sorted(housing_years.intersection(income_years))
+
+                    if common_years:
+                        latest_year = max(common_years)
+                        latest_housing = df[df['observation_date'].dt.year == latest_year][expense_col].iloc[0]
+                        latest_income = \
+                        filtered_income[filtered_income['observation_date'].dt.year == latest_year][income_col].iloc[0]
+
+                        # Calculate ratio (income divided by annual housing cost)
+                        if latest_housing > 0:
+                            ratio = latest_income / latest_housing
+                            housing_income_ratio = f"{ratio:.2f}"
+
+            # Calculate ratio for each year where both income and expense data exist
+            ratio_series = []
+
+            # Initialize lists for years and ratio values
+            year_list = []
+            ratio_list = []
+
+            # Find common years between income and this expense category
+            for year in sorted(set(df['observation_date'].dt.year)):
+                income_year_data = filtered_income[filtered_income['observation_date'].dt.year == year]
+                expense_year_data = df[df['observation_date'].dt.year == year]
+
+                if not income_year_data.empty and not expense_year_data.empty:
+                    year_income = income_year_data[income_col].iloc[0]
+                    year_expense = expense_year_data[expense_col].iloc[0]
+
+                    if year_expense > 0:
+                        ratio = year_income / year_expense
+
+                        year_list.append(year)
+                        ratio_list.append(ratio)
+
+            if year_list:
+                ratios_data[label] = ratio_list
+                if not years_list:
+                    years_list = year_list
+
+        # Update comparison chart layout
+        comparison_fig.update_layout(
+            title=f"Income vs. Expenses Comparison ({start_year}-{end_year})",
+            xaxis_title="Year",
+            yaxis_title=y_title,
+            template="plotly_white",
+            hovermode="x unified",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
+
+        # Create ratios chart
+        for label, ratio_values in ratios_data.items():
+            ratio_fig.add_trace(go.Scatter(
+                x=[pd.Timestamp(year=year, month=1, day=1) for year in years_list],
+                y=ratio_values,
+                mode='lines+markers',
+                name=f"Income-to-{label} Ratio"
+            ))
+
+        ratio_fig.update_layout(
+            title=f"Income-to-Expense Ratios ({start_year}-{end_year})",
+            xaxis_title="Year",
+            yaxis_title="Ratio (Income / Expense)",
+            template="plotly_white",
+            hovermode="x unified",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
+        )
+
+        return comparison_fig, ratio_fig, housing_income_ratio, min_wage_growth_text
