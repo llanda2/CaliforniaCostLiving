@@ -7,11 +7,20 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
-# Initialize the app
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+# Define a colors dictionary to reuse for charts and styling across the app
+COLORS = {
+    "cash": "#3cb521",  # Example color for cash-related elements (if needed)
+    "bonds": "#fd7e14",  # Example color for bonds-related elements
+    "stocks": "#446e9b",  # Example color for stocks-related elements
+    "inflation": "#cd0200",  # Example color for inflation-related elements
+    "background": "whitesmoke",  # Background color used in graphs or container backgrounds
+}
+
+# Initialize the app with the SPACELAB theme and Font Awesome icons for consistency
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.SPACELAB, dbc.icons.FONT_AWESOME])
 app.title = "California Cost of Living Dashboard"
 
-# Load datasets
+# Load datasets and convert observation_date columns to datetime objects
 min_wage_df = pd.read_csv('data/CaliMinWage.csv')
 min_wage_df['observation_date'] = pd.to_datetime(min_wage_df['observation_date'])
 
@@ -30,43 +39,49 @@ leisure_df['observation_date'] = pd.to_datetime(leisure_df['observation_date'])
 income_df = pd.read_csv('data/medianHouseIncomeCal.csv')
 income_df['observation_date'] = pd.to_datetime(income_df['observation_date'])
 
-# App layout
+# Build the app layout using Bootstrap components and styling classes
 app.layout = dbc.Container([
-    # Header
+    # Header Section with updated styling (centered text, primary background, white text, and padding)
     dbc.Row([
         dbc.Col([
-            html.H1("California Cost of Living Dashboard", className="text-center my-3"),
-            html.P("Explore changes in income, expenses, and affordability factors over time",
-                   className="text-center lead")
+            html.H1(
+                "California Cost of Living Dashboard",
+                className="text-center bg-primary text-white p-2"
+            ),
+            html.P(
+                "Explore changes in income, expenses, and affordability factors over time",
+                className="text-center lead"
+            )
         ])
     ]),
 
     html.Hr(),
 
-    # Date Range Selector
+    # Date Range Selector Section
     dbc.Row([
         dbc.Col([
             html.H5("Select Date Range"),
             dcc.RangeSlider(
                 id='year-slider',
-                min=min(min_wage_df['observation_date'].dt.year.min(),
-                        income_df['observation_date'].dt.year.min()),
-                max=max(min_wage_df['observation_date'].dt.year.max(),
-                        income_df['observation_date'].dt.year.max()),
+                min=min(min_wage_df['observation_date'].dt.year.min(), income_df['observation_date'].dt.year.min()),
+                max=max(min_wage_df['observation_date'].dt.year.max(), income_df['observation_date'].dt.year.max()),
                 step=1,
-                marks={i: str(i) for i in range(
-                    min(min_wage_df['observation_date'].dt.year.min(),
-                        income_df['observation_date'].dt.year.min()),
-                    max(min_wage_df['observation_date'].dt.year.max(),
-                        income_df['observation_date'].dt.year.max()) + 1,
-                    5)},
+                marks={
+                    i: str(i) for i in range(
+                        min(min_wage_df['observation_date'].dt.year.min(), income_df['observation_date'].dt.year.min()),
+                        max(min_wage_df['observation_date'].dt.year.max(),
+                            income_df['observation_date'].dt.year.max()) + 1,
+                        5
+                    )
+                },
                 value=[1990, 2020]  # Default selection
             ),
         ], width=12, md=10, className="mx-auto mb-4")
     ]),
 
-    # Analysis Controls
+    # Analysis Controls Section with two cards for options and key metrics
     dbc.Row([
+        # Analysis Options Card
         dbc.Col([
             dbc.Card([
                 dbc.CardHeader("Analysis Options"),
@@ -99,6 +114,7 @@ app.layout = dbc.Container([
             ]),
         ], width=12, lg=5),
 
+        # Key Metrics Card with updated text color classes
         dbc.Col([
             dbc.Card([
                 dbc.CardHeader("Key Metrics"),
@@ -129,12 +145,13 @@ app.layout = dbc.Container([
         ], width=12, lg=7),
     ], className="mb-4"),
 
-    # Tabs
+    # Tabs Section: Contains multiple tabs for different analyses
     dbc.Tabs([
+        # Income Analysis Tab
         dbc.Tab(label="Income Analysis", tab_id="income-tab", children=[
             dbc.Row([
                 dbc.Col([
-                    dcc.Graph(id='income-chart'),
+                    dcc.Graph(id='income-chart')
                 ], width=12)
             ]),
             dbc.Row([
@@ -158,10 +175,11 @@ app.layout = dbc.Container([
             ]),
         ]),
 
+        # Expenses Analysis Tab
         dbc.Tab(label="Expenses Analysis", tab_id="expenses-tab", children=[
             dbc.Row([
                 dbc.Col([
-                    dcc.Graph(id='expenses-chart'),
+                    dcc.Graph(id='expenses-chart')
                 ], width=12)
             ]),
             dbc.Row([
@@ -185,10 +203,11 @@ app.layout = dbc.Container([
             ]),
         ]),
 
+        # Comparative Analysis Tab
         dbc.Tab(label="Comparative Analysis", tab_id="comparative-tab", children=[
             dbc.Row([
                 dbc.Col([
-                    dcc.Graph(id='comparison-chart'),
+                    dcc.Graph(id='comparison-chart')
                 ], width=12)
             ]),
             dbc.Row([
@@ -199,11 +218,12 @@ app.layout = dbc.Container([
                         "A higher income-to-expense ratio indicates better affordability, while a declining ratio suggests expenses are growing faster than income."),
                 ], width=12, md=6),
                 dbc.Col([
-                    dcc.Graph(id='ratio-chart'),
+                    dcc.Graph(id='ratio-chart')
                 ], width=12, md=6)
             ]),
         ]),
 
+        # Data Sources Tab
         dbc.Tab(label="Data Sources", tab_id="data-tab", children=[
             dbc.Row([
                 dbc.Col([
@@ -254,7 +274,7 @@ app.layout = dbc.Container([
 
     ], id="tabs", active_tab="income-tab", className="mb-4"),
 
-    # Footer
+    # Footer Section with updated styling for consistency (centered text with padding)
     html.Hr(),
     dbc.Row([
         dbc.Col([
@@ -269,14 +289,15 @@ app.layout = dbc.Container([
     ])
 ], fluid=True)
 
-# Import callbacks
+# Import callbacks from an external file and register them with the app.
+# (Ensure your callbacks use the COLORS dictionary for any chart styling if needed.)
 from callbacks import register_callbacks
 
 register_callbacks(app, min_wage_df, energy_gas_df, healthcare_df, housing_df, leisure_df, income_df)
 
-# Start the app
+# Start the app using Werkzeug's development server with debugging enabled.
 if __name__ == '__main__':
-    # Method 1: Direct use of Werkzeug
     import werkzeug.serving
+
     print("Dash is running on http://127.0.0.1:8050/")
     werkzeug.serving.run_simple('127.0.0.1', 8050, app.server, use_reloader=True, use_debugger=True)
