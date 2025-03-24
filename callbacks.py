@@ -1,9 +1,9 @@
-from dash.dependencies import Input, Output
-import pandas as pd
+from dash import Input, Output
 import plotly.express as px
 import plotly.graph_objects as go
+import pandas as pd
 import numpy as np
-
+from dash import html
 
 def register_callbacks(app, min_wage_df, energy_gas_df, healthcare_df, housing_df, leisure_df, income_df):
     """Register all callbacks for the dashboard"""
@@ -121,6 +121,7 @@ def register_callbacks(app, min_wage_df, energy_gas_df, healthcare_df, housing_d
 
         return fig, table_df.to_dict('records'), columns, growth_text
 
+    # Remaining callbacks (kept the same)...
     # Callback for Expenses Chart and Table
     @app.callback(
         [Output('expenses-chart', 'figure'),
@@ -452,3 +453,121 @@ def register_callbacks(app, min_wage_df, energy_gas_df, healthcare_df, housing_d
         )
 
         return comparison_fig, ratio_fig, housing_income_ratio, min_wage_growth_text
+
+    # New callback for income comparison
+    @app.callback(
+        [Output("income-comparison-result", "children"),
+         Output("income-comparison-chart", "figure")],
+        [Input("personal-income-input", "value"),
+         Input("year-slider", "value")]
+    )
+    def update_income_comparison(personal_income, years_range):
+        if not personal_income:
+            return html.Div(), {}
+
+        # Define COLORS dictionary if it doesn't exist in your current scope
+        COLORS = {
+            "stocks": "#1f77b4",  # Blue
+            "inflation": "#ff7f0e",  # Orange
+            "housing": "#2ca02c",  # Green
+            "energy": "#d62728",  # Red
+            "healthcare": "#9467bd",  # Purple
+            "leisure": "#8c564b"  # Brown
+        }
+
+        # Filter income data based on selected years
+        start_year, end_year = years_range
+        filtered_income = filter_by_year_range(income_df, start_year, end_year)
+
+        # Get latest median income value
+        income_col = [col for col in filtered_income.columns if col != 'observation_date'][0]
+        latest_income = filtered_income.iloc[-1][income_col]
+        latest_year = filtered_income.iloc[-1]['observation_date'].year
+
+        # Calculate income comparison metrics
+        income_ratio = (personal_income / latest_income) * 100
+        income_difference = personal_income - latest_income
+
+        # Determine affordability tier and message
+        if income_ratio < 50:
+            tier = "significantly below"
+            tier_class = "text-danger"
+            message = f"Your income is significantly below California's median, which may present affordability challenges in many parts of the state."
+        elif income_ratio < 80:
+            tier = "below"
+            tier_class = "text-warning"
+            message = f"Your income is below California's median, which may limit housing options in higher-cost regions."
+        elif income_ratio < 120:
+            tier = "near"
+            tier_class = "text-info"
+            message = f"Your income is near California's median, providing moderate affordability in many areas."
+        else:
+            tier = "above"
+            tier_class = "text-success"
+            message = f"Your income exceeds California's median, offering greater flexibility in most housing markets."
+
+        # Create comparison result component
+        comparison_result = html.Div([
+            html.H5([
+                f"Your income is ",
+                html.Span(f"{tier} ", className=tier_class),
+                f"California's {latest_year} median income of ${latest_income:,.0f}"
+            ]),
+            html.P([
+                f"You earn ",
+                html.Strong(f"${abs(income_difference):,.0f} {'more' if income_difference >= 0 else 'less'} "),
+                f"than the median California household. ",
+                f"Your income is ",
+                html.Strong(f"{income_ratio:.1f}% "),
+                f"of the state median."
+            ]),
+            html.P(message, className="mt-2 font-italic")
+        ])
+
+        # Create comparison chart
+        income_years = filtered_income['observation_date'].dt.year.tolist()
+        income_values = filtered_income[income_col].tolist()
+
+        # Create the figure
+        fig = go.Figure()
+
+        # Add income trend line
+        fig.add_trace(go.Scatter(
+            x=income_years,
+            y=income_values,
+            mode='lines+markers',
+            name='CA Median Income',
+            line=dict(color=COLORS["stocks"], width=3),
+        ))
+
+        # Add user's income as a horizontal line
+        fig.add_trace(go.Scatter(
+            x=[min(income_years), max(income_years)],
+            y=[personal_income, personal_income],
+            mode='lines',
+            name='Your Income',
+            line=dict(color=COLORS["inflation"], width=2, dash='dash'),
+        ))
+
+        # Update layout
+        fig.update_layout(
+            title=f"Your Income vs. California Median Household Income",
+            xaxis_title="Year",
+            yaxis_title="Annual Income ($)",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            margin=dict(l=40, r=40, t=40, b=40),
+            height=300,
+            template="plotly_white",
+            hovermode="x unified"
+        )
+
+        # Add dollar sign format to y-axis
+        fig.update_yaxes(tickprefix="$", tickformat=",")
+
+        return comparison_result, fig

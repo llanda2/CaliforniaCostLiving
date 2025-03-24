@@ -147,8 +147,41 @@ app.layout = dbc.Container([
 
     # Tabs Section: Contains multiple tabs for different analyses
     dbc.Tabs([
-        # Income Analysis Tab
+        # Complete Income Analysis Tab with Personal Income Comparison
+        # Replace your entire Income Analysis Tab section with this code
         dbc.Tab(label="Income Analysis", tab_id="income-tab", children=[
+            # Personal income comparison section
+            dbc.Row([
+                dbc.Col([
+                    dbc.Card([
+                        dbc.CardHeader("Compare Your Income"),
+                        dbc.CardBody([
+                            dbc.Row([
+                                dbc.Col([
+                                    html.Label("Enter Your Annual Income ($):", className="form-label"),
+                                    dbc.InputGroup([
+                                        dbc.InputGroupText("$"),
+                                        dbc.Input(
+                                            id="personal-income-input",
+                                            type="number",
+                                            min=0,
+                                            step=1000,
+                                            value=60000,
+                                            placeholder="Enter your annual income"
+                                        ),
+                                    ]),
+                                    html.Div(id="income-comparison-result", className="mt-3")
+                                ], width=12, md=5),
+                                dbc.Col([
+                                    dcc.Graph(id="income-comparison-chart", config={'displayModeBar': False})
+                                ], width=12, md=7)
+                            ])
+                        ])
+                    ], className="mb-4")
+                ], width=12)
+            ]),
+
+            # Existing Income Analysis content
             dbc.Row([
                 dbc.Col([
                     dcc.Graph(id='income-chart')
@@ -202,39 +235,39 @@ app.layout = dbc.Container([
                 ], width=12)
             ]),
         ]),
-dbc.Tab(label="Comparative Analysis", tab_id="comparative-tab", children=[
-    # Explanation text at the top
-    dbc.Row([
-        dbc.Col([
-            html.H5("Income vs. Expenses Analysis", className="mt-5 mb-3 fw-bold"),
-            html.P("This chart shows how income has changed relative to various expenses over time.",
-                   className="lead"),
-            html.P("A higher income-to-expense ratio indicates better affordability, while a declining ratio suggests expenses are growing faster than income.",
-                   className="text-muted"),
-        ], width=12, className="p-4")
-    ], className="mt-4"),
+        dbc.Tab(label="Comparative Analysis", tab_id="comparative-tab", children=[
+            # Explanation text at the top
+            dbc.Row([
+                dbc.Col([
+                    html.H5("Income vs. Expenses Analysis", className="mt-5 mb-3 fw-bold"),
+                    html.P("This chart shows how income has changed relative to various expenses over time.",
+                           className="lead"),
+                    html.P(
+                        "A higher income-to-expense ratio indicates better affordability, while a declining ratio suggests expenses are growing faster than income.",
+                        className="text-muted"),
+                ], width=12, className="p-4")
+            ], className="mt-4"),
 
-    # Income vs. Expenses Chart (Dynamic Height & Full Flex Growth)
-    dbc.Row([
-        dbc.Col([
-            html.Div([
-                dcc.Graph(id='comparison-chart', config={'displayModeBar': False},
-                          style={'flex': '1', 'min-height': '60vh', 'width': '100%'})
-            ], style={'display': 'flex', 'flex-direction': 'column', 'height': '100%'})
-        ], width=12, className="p-4")
-    ], className="mt-4"),
+            # Income vs. Expenses Chart (Dynamic Height & Full Flex Growth)
+            dbc.Row([
+                dbc.Col([
+                    html.Div([
+                        dcc.Graph(id='comparison-chart', config={'displayModeBar': False},
+                                  style={'flex': '1', 'min-height': '60vh', 'width': '100%'})
+                    ], style={'display': 'flex', 'flex-direction': 'column', 'height': '100%'})
+                ], width=12, className="p-4")
+            ], className="mt-4"),
 
-    # Ratio Chart (Now with same flexbox styling)
-    dbc.Row([
-        dbc.Col([
-            html.Div([
-                dcc.Graph(id='ratio-chart', config={'displayModeBar': False},
-                          style={'flex': '1', 'min-height': '50vh', 'width': '100%'})
-            ], style={'display': 'flex', 'flex-direction': 'column', 'height': '100%'})
-        ], width=12, className="p-4")
-    ], className="mt-4 mb-5 py-4"),
-]),
-
+            # Ratio Chart (Now with same flexbox styling)
+            dbc.Row([
+                dbc.Col([
+                    html.Div([
+                        dcc.Graph(id='ratio-chart', config={'displayModeBar': False},
+                                  style={'flex': '1', 'min-height': '50vh', 'width': '100%'})
+                    ], style={'display': 'flex', 'flex-direction': 'column', 'height': '100%'})
+                ], width=12, className="p-4")
+            ], className="mt-4 mb-5 py-4"),
+        ]),
 
         # Data Sources Tab
         dbc.Tab(label="Data Sources", tab_id="data-tab", children=[
