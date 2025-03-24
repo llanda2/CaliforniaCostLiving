@@ -10,7 +10,7 @@
 I chose California as the focus for this cost of living dashboard because it represents one of the most economically diverse and dynamic regions in the United States. California has experienced significant economic shifts over the past few decades, with dramatic changes in housing affordability, income inequality, and overall cost of living. As the most populous state with the largest economy in the US, California offers rich datasets that demonstrate the complex interplay between income growth and rising expenses.
 
 ### Project Description
-This interactive dashboard allows users to explore California's economic trends and cost of living factors from the 1990s to 2020. The application visualizes the relationship between median household income and various expense categories, helping users understand affordability changes over time and how their personal income compares to state averages.
+This interactive dashboard allows users to explore California's economic trends and cost of living factors from the 1990s to 2020s. The application visualizes the relationship between median household income and various expense categories, helping users understand affordability changes over time and how their personal income compares to state averages.
 
 ## Datasets
 
@@ -56,7 +56,7 @@ All data was sourced from the Federal Reserve Economic Data (FRED) database:
 
 ## Strategic Visualization Decisions
 
-To create an effective data visualization dashboard, I've incorporated several key strategies from the Science of Data Visualization:
+To create an effective data visualization dashboard, I've incorporated several key strategies:
 
 1. **Interactive Filtering and Time Range Selection**
    - Implemented a year range slider to allow users to focus on specific time periods
