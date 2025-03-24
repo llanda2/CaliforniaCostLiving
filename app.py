@@ -202,26 +202,39 @@ app.layout = dbc.Container([
                 ], width=12)
             ]),
         ]),
+dbc.Tab(label="Comparative Analysis", tab_id="comparative-tab", children=[
+    # Explanation text at the top
+    dbc.Row([
+        dbc.Col([
+            html.H5("Income vs. Expenses Analysis", className="mt-5 mb-3 fw-bold"),
+            html.P("This chart shows how income has changed relative to various expenses over time.",
+                   className="lead"),
+            html.P("A higher income-to-expense ratio indicates better affordability, while a declining ratio suggests expenses are growing faster than income.",
+                   className="text-muted"),
+        ], width=12, className="p-4")
+    ], className="mt-4"),
 
-        # Comparative Analysis Tab
-        dbc.Tab(label="Comparative Analysis", tab_id="comparative-tab", children=[
-            dbc.Row([
-                dbc.Col([
-                    dcc.Graph(id='comparison-chart')
-                ], width=12)
-            ]),
-            dbc.Row([
-                dbc.Col([
-                    html.H5("Income vs. Expenses Analysis", className="mt-3"),
-                    html.P("This chart shows how income has changed relative to various expenses over time."),
-                    html.P(
-                        "A higher income-to-expense ratio indicates better affordability, while a declining ratio suggests expenses are growing faster than income."),
-                ], width=12, md=6),
-                dbc.Col([
-                    dcc.Graph(id='ratio-chart')
-                ], width=12, md=6)
-            ]),
-        ]),
+    # Income vs. Expenses Chart (Dynamic Height & Full Flex Growth)
+    dbc.Row([
+        dbc.Col([
+            html.Div([
+                dcc.Graph(id='comparison-chart', config={'displayModeBar': False},
+                          style={'flex': '1', 'min-height': '60vh', 'width': '100%'})
+            ], style={'display': 'flex', 'flex-direction': 'column', 'height': '100%'})
+        ], width=12, className="p-4")
+    ], className="mt-4"),
+
+    # Ratio Chart (Now with same flexbox styling)
+    dbc.Row([
+        dbc.Col([
+            html.Div([
+                dcc.Graph(id='ratio-chart', config={'displayModeBar': False},
+                          style={'flex': '1', 'min-height': '50vh', 'width': '100%'})
+            ], style={'display': 'flex', 'flex-direction': 'column', 'height': '100%'})
+        ], width=12, className="p-4")
+    ], className="mt-4 mb-5 py-4"),
+]),
+
 
         # Data Sources Tab
         dbc.Tab(label="Data Sources", tab_id="data-tab", children=[

@@ -89,12 +89,16 @@ def register_callbacks(app, min_wage_df, energy_gas_df, healthcare_df, housing_d
             labels={'observation_date': 'Year', 'value': y_title}
         )
 
+        # Add this line to format the y-axis ticks with commas
         fig.update_layout(
             xaxis_title="Year",
             yaxis_title=y_title,
             template="plotly_white",
             legend_title_text="",
-            hovermode="x unified"
+            hovermode="x unified",
+            yaxis=dict(
+                tickformat=",d"  # This formats numbers with commas as thousand separators
+            )
         )
 
         # Prepare table data
@@ -148,7 +152,7 @@ def register_callbacks(app, min_wage_df, energy_gas_df, healthcare_df, housing_d
         # Calculate housing growth for the KPI
         if 'housing' in selected_expenses and len(filtered_expenses['Housing & Utilities']) > 1:
             housing_col = \
-            [col for col in filtered_expenses['Housing & Utilities'].columns if col != 'observation_date'][0]
+                [col for col in filtered_expenses['Housing & Utilities'].columns if col != 'observation_date'][0]
             housing_growth = calculate_growth_percentage(filtered_expenses['Housing & Utilities'][housing_col])
             housing_growth_text = f"{housing_growth:.1f}%"
         else:
@@ -222,6 +226,9 @@ def register_callbacks(app, min_wage_df, energy_gas_df, healthcare_df, housing_d
             yaxis_title=y_axis_title,
             template="plotly_white",
             hovermode="x unified",
+            yaxis=dict(
+                tickformat=',',  # This adds commas to the y-axis values
+            ),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -363,7 +370,8 @@ def register_callbacks(app, min_wage_df, energy_gas_df, healthcare_df, housing_d
                         latest_year = max(common_years)
                         latest_housing = df[df['observation_date'].dt.year == latest_year][expense_col].iloc[0]
                         latest_income = \
-                        filtered_income[filtered_income['observation_date'].dt.year == latest_year][income_col].iloc[0]
+                            filtered_income[filtered_income['observation_date'].dt.year == latest_year][
+                                income_col].iloc[0]
 
                         # Calculate ratio (income divided by annual housing cost)
                         if latest_housing > 0:
@@ -404,6 +412,9 @@ def register_callbacks(app, min_wage_df, energy_gas_df, healthcare_df, housing_d
             yaxis_title=y_title,
             template="plotly_white",
             hovermode="x unified",
+            yaxis=dict(
+                tickformat=',',  # This adds commas to the y-axis values
+            ),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -428,6 +439,9 @@ def register_callbacks(app, min_wage_df, energy_gas_df, healthcare_df, housing_d
             yaxis_title="Ratio (Income / Expense)",
             template="plotly_white",
             hovermode="x unified",
+            yaxis=dict(
+                tickformat=',',  # This adds commas to the y-axis values
+            ),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
