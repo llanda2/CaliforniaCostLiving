@@ -105,7 +105,7 @@ app.layout = dbc.Container([
                         options=[
                             {'label': ' Actual Values', 'value': 'actual'},
                             {'label': ' Percentage Change', 'value': 'percent'},
-                            {'label': ' Inflation Adjusted', 'value': 'adjusted'}
+                            {'label': ' Inflation Adjusted (~2.5%) ', 'value': 'adjusted'}
                         ],
                         value='actual',
                         inline=True
