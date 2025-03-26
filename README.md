@@ -107,3 +107,6 @@ Users can investigate California's economic resilience through major economic do
 - Analysis of recovery patterns in income vs. expenses after economic shocks
 - Visualization of which expense categories are most volatile during economic downturns
 - Exploration of how the income-to-expense ratio changes during periods of economic stress
+
+
+**Added more information about inflation (2.5% increase annually)**
